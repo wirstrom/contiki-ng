@@ -42,6 +42,14 @@
 
 #include <stdio.h>
 
+#define DEBUG 0
+
+#if DEBUG
+#define PRINTF(...) printf (__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+
 /*---------------------------------------------------------------------------*/
 
 /*Read register on device, writes to stream->buffer, calls stream->handler every stream->length byte
@@ -56,29 +64,56 @@ i2c_dev_read_register_stream(i2c_device_t *dev, uint8_t reg, i2c_dev_stream_t *s
   i2c_dev_status_t status;
   i2c_dev_stream_state_t state = I2C_STREAM_START;
 
+  PRINTF("i2c_dev_read_register_stream ENTER\n");
+
+  if(stream->init != 0) {
+    PRINTF("i2c_dev_read_register_stream HANDLER -1\n");
+    state = stream->init(stream);
+    if(state == I2C_STREAM_END) {
+      PRINTF("i2c_dev_read_register_stream EXIT -1\n");
+      return I2C_DEV_STATUS_OK;
+    }
+  }
+
   status = i2c_arch_write(dev, &reg, 1, 1, 0);
   if(status != I2C_DEV_STATUS_OK) {
+    PRINTF("i2c_dev_read_register_stream EXIT 0\n");
     return status;
   }
 
-  status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 1, 0);
-  while(1) {
-    if(status != I2C_DEV_STATUS_OK) {
-      return status;
-    }
-    state = stream->handler(stream);
-
-    if(state == I2C_STREAM_LAST_CHUNK) {
+  switch(state){
+    case I2C_STREAM_LAST_CHUNK:
+      PRINTF("CASE I2C_STREAM_LAST_CHUNK\n");
+      status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 1, 1);
       break;
-    }
-    status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 0, 0);
+    default:
+      PRINTF("CASE default\n");
+      status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 1, 0);
+      while(1) {
+        if(status != I2C_DEV_STATUS_OK) {
+          PRINTF("i2c_dev_read_register_stream EXIT 1\n");
+          return status;
+        }
+        PRINTF("i2c_dev_read_register_stream HANDLER 0\n");
+        state = stream->handler(stream);
+        PRINTF("handler state = %d\n",state);
+        if(state == I2C_STREAM_LAST_CHUNK) {
+          break;
+        }
+        status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 0, 0);
+      }
+      status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 0, 1);
   }
-  status = i2c_arch_read(dev, (uint8_t *)stream->buffer, stream->length, 0, 1);
+
   if(status != I2C_DEV_STATUS_OK) {
+    PRINTF("i2c_dev_read_register_stream EXIT 2\n");
     return status;
   }
+  PRINTF("i2c_dev_read_register_stream HANDLER 1\n");
   state = stream->handler(stream);
+  PRINTF("handler state = %d\n",state);
 
+  PRINTF("i2c_dev_read_register_stream EXIT 3\n");
   return status;
 }
 /*---------------------------------------------------------------------------*/

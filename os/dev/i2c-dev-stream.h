@@ -57,6 +57,7 @@ struct _chunk {
   volatile int length;
   volatile uint8_t *buffer;
   volatile i2c_chunk_handler handler;
+  volatile i2c_chunk_handler init;
 };
 
 i2c_dev_status_t i2c_dev_read_register_stream(i2c_device_t *dev, uint8_t reg, i2c_dev_stream_t *stream);
